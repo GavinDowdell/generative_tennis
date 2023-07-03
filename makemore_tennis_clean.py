@@ -531,8 +531,8 @@ class MLPMine1(nn.Module):
         # decode the outputs over the prob distribution of the targets
         # essentially this turns a list into a tensor ready for a linear layer
         hidden = torch.stack(hiddens, 1) 
-        logits = self.lm_head(hidden)
-        #logits = self.mlp(hidden)
+        #logits = self.lm_head(hidden)
+        logits = self.mlp(hidden)
 
         # if we are given some desired targets also calculate the loss
         loss = None
