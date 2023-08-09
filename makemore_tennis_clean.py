@@ -17,12 +17,12 @@ to run in spyder or ipython
 
 the best dataset I have at the moment is tennis_shots_new_all_final_reduced.txt - I may improve that at some stage.
 
-python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -o tennis_mlp --type mlp --max-steps 10000
-python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token list e.g. a114,f39> -o tennis_mlp --type mlp --sample-only
+python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -o tennis_mlpmine1 --type mlpmine1 --max-steps 10000
+python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token list e.g. a114,f39> -o tennis_mlpmine1 --type mlpmine1 --sample-only
 
 
-run makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -o tennis_mlp --type mlp --max-steps 10000
-run makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token e.g. a216> -o tennis_mlp --type mlp --sample-only
+run makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -o tennis_mlpmine1 --type mlpmine1 --max-steps 10000
+run makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token e.g. a216> -o tennis_mlpmine1 --type mlpmine1 --sample-only
  
 Note: For sample-only it is loading a pretrained model from the output directory. 
 However the model that you call here will be instantiated hence it must be the 
@@ -186,7 +186,11 @@ def yield_tokens(file_list):
 # specials go first
 vocab = build_vocab_from_iterator(yield_tokens(all_pts),specials=["<pad>"])
 #yield_tokens(r'C:\gavin\software\python\pytorch\karpathy\makemore\makemore\tennis_shots_new_all_final_reduced.txt'), 
- 
+
+
+torch.save(vocab, r'C:\gavin\software\python\pytorch\karpathy\makemore\makemore\tennis_transformer\vocab.pt')
+# to load in later vocab = torch.load('vocab.pt')
+
 itos = vocab.get_itos()
 len(itos)
 
@@ -258,6 +262,16 @@ class CausalSelfAttention(nn.Module):
 
         Buffers can be accessed as attributes using given names.
         '''
+        
+        # torch.tril makes a lower traingular matrix with 1's in lower and zero upper
+        # torch.tril(torch.ones(3,3))
+        # tensor([[1., 0., 0.],
+        #         [1., 1., 0.],
+        #        [1., 1., 1.]])
+        # later 0's converted to -inf
+        # We implement this
+        # inside of scaled dot-product attention by masking out (setting to -inf) all values in the input
+        # of the softmax which correspond to illegal connections.
         
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
@@ -429,7 +443,8 @@ class MyRNN(nn.Module):
         #    self.cell = RNNCell(config)
         #elif cell_type == 'gru':
         #    self.cell = GRUCell(config)
-        self.rnn = nn.RNN(config.n_embd,config.n_embd,batch_first=True)
+        # self.rnn = nn.RNN(config.n_embd,config.n_embd,batch_first=True)
+        self.rnn = nn.LSTM(config.n_embd,config.n_embd,batch_first=True)
         self.lm_head = nn.Linear(config.n_embd, self.vocab_size)
 
     def get_block_size(self):
@@ -607,8 +622,8 @@ class MLPMine3(nn.Module):
         # decode the outputs over the prob distribution of the targets
         # essentially this turns a list into a tensor ready for a linear layer
         hidden = torch.stack(hiddens, 1) 
-        logits = self.lm_head(hidden)
-        #logits = self.mlp(hidden)
+        #logits = self.lm_head(hidden)
+        logits = self.mlp(hidden)
 
         # if we are given some desired targets also calculate the loss
         loss = None
@@ -720,8 +735,8 @@ class CBOW(nn.Module):
         # decode the outputs over the prob distribution of the targets
         # essentially this turns a list into a tensor ready for a linear layer
         hidden = torch.stack(hiddens, 1) 
-        logits = self.lm_head(hidden)
-        #logits = self.mlp(hidden)
+        #logits = self.lm_head(hidden)
+        logits = self.mlp(hidden)
 
         # if we are given some desired targets also calculate the loss
         loss = None
