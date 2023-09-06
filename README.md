@@ -10,9 +10,7 @@ Full credit for the data from the incedible resource
 
 
 
-
-
-What are generative models
+What are generative models?
 
 * Generative Models are models that generate synthetic probable realisations
 
