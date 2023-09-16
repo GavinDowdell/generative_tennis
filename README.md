@@ -120,8 +120,6 @@ upon whether you want to work with low level code or a higher
 level API. The code is adapted from nanoGPT
 https://github.com/karpathy/nanoGPT
 * Run python tennis_gpt.py -h to access help
-To train 
-python tennis_gpt.py -i tennis_shots_new_all_final_reduced.txt -o tennis_gpt --type transformer --max-steps 10000
-To sample from a trained model
-python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token list e.g. a114,f39> -o tennis_gpt --type transformer --sample-only 
+* To train ** python tennis_gpt.py -i tennis_shots_new_all_final_reduced.txt -o tennis_gpt --type transformer --max-steps 10000 **
+* To sample from a trained model ** python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token list e.g. a114,f39> -o tennis_gpt --type transformer --sample-only **
 
