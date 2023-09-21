@@ -4,9 +4,9 @@
 
 
 
-Full credit for the data from the incedible resource 
+Full credit for the data from the incedible resource to Jeff Sackmann
 
-[JeffSackman](https://github.com/JeffSackmann/tennis_MatchChartingProject)
+[JeffSackmann](https://github.com/JeffSackmann/tennis_MatchChartingProject)
 
 
 
