@@ -839,5 +839,5 @@ print(labels)
 print(len(labels))
 
 for ds in datasets:
-    plot_the_embedding_prodn.plot_2d_3d(ds,labels)
+    plot_the_embedding_prodn.plot_embedding(ds,labels)
 
