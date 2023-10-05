@@ -2,53 +2,16 @@
 ## Generative Models with an Application for Professional Tennis Data
 
 
+The aim of the project is utilise modern Language type models on tennis shot data, which due to it's sequential (non IID) structure over a series of shots, 
+shows similar structure to language data. Hence many of the same methods can be considered, in particular to generate new sythetic points data and to extract point embeddings
+that could be used in downstream applications.
 
-
-Full credit for the data from the incedible resource to Jeff Sackmann
+Full credit for the data from the incredible resource to Jeff Sackmann
 
 [JeffSackmann](https://github.com/JeffSackmann/tennis_MatchChartingProject)
 
 
-
-What are Generative Models?
-
-* Generative Models are models that generate synthetic probable realisations
-
-* The models to do so are still essentially Machine Learning models except the target variable is interpreted as a parameter of a probability distribution and can therefore be sampled for realisations.
-
-* For discrete distributions such as language commonly p(t;**θ**) = Cat(**θ**)
-
-* E[**θ**]= f(**x**;**ω**) via a particular ML model and then sample from p()
-<span style="color:red">
-Good to remember we are sampling from probability distributions even though the applications are incredibly good and look like magic!</span>
-
-* The challenging part isn’t really to generate the realisation, as much fun as it is, but to find a good use case for doing so. 
-
-Generative Models are not new, consider say option pricing.
-
-However things are more difficult with discrete sequential data
-For large discrete distributions such as Natural Text, where the distribution is now categorical over the size of the token Vocab (1000’s), then this becomes
-more difficult. As if things weren’t hard enough, if the data is sequential such that values are dependent upon the previous values, hence non IID or autoregressive, then this
-becomes much, much more difficult unless you make assumptions such as
-
-p(y |**y** ) = p(y |y ,y … y ) = p(y |y ,y ) - trigrams -> limited context
-
-However what about autoregressive sequential data that has some similarities with language?
-
-* Music notation is an example that is structured like language
-
-* The current note is not independent of the previous notes
-
-* I am not musical but I like sports so I was interested in understanding it’s sequential structure
-
-* Hence many NLP techniques and architectures can be applied, although not usually pretrained models which are specific to language
-
-
-* Shots within a tennis point as like words in a sentence. Professional Tennis players are like chess players – setting up strategies many shots ahead.
-Unlike us their play is not random – Rafa Nadal a great example of this.
-
-
-* It ties into a core concept in Machine Learning – observable vs latent. What we see during a sporting event looks quite unstructured however it is more likely to be a noisy representation of some much simpler latent behaviour.  Can we discover that latent behaviour with a language model?
+For more details see the presentation Tennis_shot_representations.pptx
 
 * Code structure
 To run
@@ -56,8 +19,22 @@ To run
 1. Clone the repo or download the files
 2. use conda to setup an environment with the requirements.txt file
 3. activate the new environment
-4. chdir to the root directory of makemore_tennis_clean.py
+4. chdir to the root directory of tennis_gpt.py
 5. run python makemore_tennis_clean.py
+
+
+Lets see how it works
+
+* All code is in Python/Pytorch but there are many ways to do it –
+Keras, Tensorflow, Hugginface, FASTAI, OPENAI etc depending
+upon whether you want to work with low level code or a higher
+level API. The code is adapted from nanoGPT
+https://github.com/karpathy/nanoGPT
+* Run python tennis_gpt.py -h to access help
+* To train **python tennis_gpt.py -i tennis_shots_new_all_final_reduced.txt -o tennis_gpt --type transformer --max-steps 10000**
+* To sample from a trained model **python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token list e.g. a114,f39> -o tennis_gpt --type transformer --sample-only**
+
+
 
 What does the code do?
 
@@ -111,15 +88,4 @@ Transformer Architecture
 
 
 <a name="br13"></a> 
-
-Lets see how it works
-
-* All code is in Python/Pytorch but there are many ways to do it –
-Keras, Tensorflow, Hugginface, FASTAI, OPENAI etc depending
-upon whether you want to work with low level code or a higher
-level API. The code is adapted from nanoGPT
-https://github.com/karpathy/nanoGPT
-* Run python tennis_gpt.py -h to access help
-* To train **python tennis_gpt.py -i tennis_shots_new_all_final_reduced.txt -o tennis_gpt --type transformer --max-steps 10000**
-* To sample from a trained model **python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token list e.g. a114,f39> -o tennis_gpt --type transformer --sample-only**
 

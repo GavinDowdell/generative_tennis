@@ -180,7 +180,7 @@ class Transformer(nn.Module):
     def get_block_size(self):
         return self.block_size
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, return_embedding=False):
         device = idx.device
         b, t = idx.size()
         assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
@@ -198,8 +198,11 @@ class Transformer(nn.Module):
         loss = None
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-
-        return logits, loss
+        
+        if return_embedding:
+            return logits,x
+        else:
+            return logits, loss
 
 
 #%%
@@ -816,28 +819,28 @@ if __name__ == '__main__':
         if args.max_steps >= 0 and step >= args.max_steps:
             break
 
-# if writeout
-if args.type in ['transformer','mytransformer']:
-    emb = model.transformer.wte.weight
-elif args.type == 'bigram':
-    emb = model.logits
-else:
-    emb = model.wte.weight
-emb_save = emb.detach().numpy()
-np.savetxt('emb_final.txt',emb_save, delimiter=',')
+    # if writeout
+    if args.type in ['transformer','mytransformer']:
+        emb = model.transformer.wte.weight
+    elif args.type == 'bigram':
+        emb = model.logits
+    else:
+        emb = model.wte.weight
+    emb_save = emb.detach().numpy()
+    np.savetxt('emb_final.txt',emb_save, delimiter=',')
 
-import plot_the_embedding_prodn
+    import plot_the_embedding_prodn
 
-# testing - if need new labels
-#train_dataset, test_dataset = create_datasets('tennis_shots_new_all_final_reduced.txt')
+    # testing - if need new labels
+    #train_dataset, test_dataset = create_datasets('tennis_shots_new_all_final_reduced.txt')
 
-datasets = ['emb_initial.txt','emb_half.txt','emb_final.txt']
-labels = []
-labels = train_dataset.itos[1:].copy()
-labels.insert(0,'0')
-print(labels)
-print(len(labels))
+    datasets = ['emb_initial.txt','emb_half.txt','emb_final.txt']
+    labels = []
+    labels = train_dataset.itos[1:].copy()
+    labels.insert(0,'0')
+    print(labels)
+    print(len(labels))
 
-for ds in datasets:
-    plot_the_embedding_prodn.plot_embedding(ds,labels)
+    for ds in datasets:
+        plot_the_embedding_prodn.plot_embedding(ds,labels)
 
