@@ -6,7 +6,7 @@ The aim of the project is to utilise modern Language type models on tennis shot 
 shows similar structure to language data. Hence many of the same methods such as RNN's and transformers can be considered, in particular to generate sythetic points data to inform strategy 
 and to extract point embeddings that could be used in downstream applications. For more details see the presentation Tennis_shot_representations.pptx
 
-Full credit for the data from the incredible resource to Jeff Sackmann
+The points data is in the file tennis_shot_data.txt which was derived from the incredible resource maintained by Jeff Sackmann
 
 [JeffSackmann](https://github.com/JeffSackmann/tennis_MatchChartingProject)
 
@@ -29,8 +29,8 @@ upon whether you want to work with low level code or a higher
 level API. The code is adapted from nanoGPT
 https://github.com/karpathy/nanoGPT
 * Run python tennis_gpt.py -h to access help
-* To train **python tennis_gpt.py -i tennis_shots_new_all_final_reduced.txt -o tennis_gpt --type transformer --max-steps 10000**
-* To sample from a trained model **python makemore_tennis_clean.py -i tennis_shots_new_all_final_reduced.txt -it <initial_token list e.g. a114,f39> -o tennis_gpt --type transformer --sample-only**
+* To train **python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt --type transformer --max-steps 10000**
+* To sample from a trained model **python tennis_gpt.py -i tennis_shot_data.txt -it <initial_token list e.g. a114,f39> -o tennis_gpt --type transformer --sample-only**
 * To generate point embeddings use **embedding_representations.py**
 
 
