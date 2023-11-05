@@ -40,7 +40,9 @@ class ModelConfig:
     n_embd2: int = 64
     n_head: int = 4
 
-tmp = ModelConfig()
+# how to use the dataclass
+tmp = ModelConfig(block_size=50)
+vars(tmp)
 tmp.n_head
 tmp.block_size
 tmp = ModelConfig(n_head = 2)

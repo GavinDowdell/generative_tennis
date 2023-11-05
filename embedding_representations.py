@@ -1,38 +1,41 @@
 """
 Before running this ensure the tennis_gpt model has been run for the 
 transformer model, as below, with the output in the directory tennis_gpt
-python tennis_gpt.py -i tennis_shots_new_all_final_reduced.txt -o tennis_gpt --type transformer --max-steps 10000
+python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt --type transformer --max-steps 10000
 
 """
 
-
-# will clobber the namespace but I know the origin so that's ok
 from tennis_gpt import *
-# must load a vocab
+import plot_the_embedding_prodn
+import numpy as np
+#%%
+
+# load the vocab
 vocab = torch.load('./tennis_gpt/vocab.pt')
-test_point = 'a114,f18,f1' # expecting at f1,f2,f3 here as the next probable shot
+
+# check the vocab works
+# must put in <pad> for the start of the point
+# otherwise the positional encoding is incorrect
+
+test_point = '<pad>,a114,f18,f1' 
+# The sequence makes sense as expecting a forehand shot here such as 
+# a114 is a first serve to the forehand side out wide hence must be 
+# followed by a forehand
+# f1,f2,f3 as the next probable shot
 mytokenizer(test_point)
 
-# 1. Can use the tokenizer
+# Can use the vocab with the tokenizer
 vocab(mytokenizer(test_point))
-vocab.lookup_indices(mytokenizer(test_point))
+# check the reverse map works
 vocab.lookup_tokens(vocab(mytokenizer(test_point)))
 
-# 2. Load the transformer weights, not into the model yet
+# Now Load the transformer weights, not into the model yet
 myweights = torch.load(r'./tennis_gpt/model.pt')
 myweights.keys()
 myweights['lm_head.weight']
 # will transform any 64 dim embedding to a representation over the embedding
 myweights['lm_head.weight'].shape
-# could actually use these weights directly if you want
-emb_test = torch.rand((64,2))
-test_out = myweights['lm_head.weight'] @ emb_test
-test_out.shape
-test_out.max(axis=0)
-test_out.argmax(axis=0)
-test_out.topk(5)[1]
-test_out[:,0].topk(5)
-# have to instantiate exactly the same model that was loaded in
+# Will have to instantiate exactly the same model that was loaded in
 n_layer = 4
 n_head = 4
 n_embd = 64
@@ -49,44 +52,37 @@ config.n_layer
 
 
 # will first have to restore the model
-# 3 steps
-# 1. Instantiate the model which will give the model the architecture with random weights
+# Instantiate the model which will give the model the architecture with random weights
 model = Transformer(config)
-
 # can use the model at this point however it is just random weights
 out = model(torch.tensor(vocab(mytokenizer(test_point))).reshape(1,-1),return_embedding=False)
 # collect the logit
 type(out[0])
 out[0].shape
-out[0][0].shape
-out[0][0,2,:].shape
-
+# the final output layer
+out[0][0,-1,:].shape
 # get the max logit random weights here
-vocab.lookup_tokens([out[0][0,2,:].argmax()])
-
-out = model(torch.tensor(vocab(mytokenizer(test_point))).reshape(1,-1),return_embedding=True)
-out[0].shape
-out[1].shape
-vocab.lookup_tokens([out[0][0,2,:].argmax()])
-
-# 2. Load the weights which I have already done
-
-# 3. Now load the weights into the model
+vocab.lookup_tokens([out[0][0,-1,:].argmax()])
+vocab.lookup_tokens(out[0][0,-1,:].topk(5)[1].tolist())
+# Now load the weights into the model
 model.transformer.wte.weight
 model.load_state_dict(myweights)
 model.transformer.wte.weight
-
 out = model(torch.tensor(vocab(mytokenizer(test_point))).reshape(1,-1),return_embedding=True)
-vocab.lookup_tokens([out[0][0,2,:].argmax()])
-vocab.lookup_tokens(out[0][0,2,:].topk(5)[1].tolist())
+vocab.lookup_tokens([out[0][0,-1,:].argmax()])
+vocab.lookup_tokens(out[0][0,-1,:].topk(5)[1].tolist())
 
-# embeddings
+# embeddings - 2 choices
 # mean
 out[1][0,:,:].mean(axis=0).shape
 # final
 out[1][0,2,:].shape
 
-# develop and test a distance function
+# Distance function
+# can choose for a point to average the embeddings or
+# take the last embedding which is a transformer autoregressive
+# contextualised embedding ready to predict the next token
+# hence captures the full meaning of the sequence
 
 def points_dist(point1,point2,mean=True):
     input_idx1 = torch.tensor(vocab(mytokenizer(point1))).view(1,-1)
@@ -97,6 +93,8 @@ def points_dist(point1,point2,mean=True):
     if mean:
         api_endpoint1_average = api_endpoint1.mean(axis=0)
     if not mean:
+        # use this if the representation you want is the 
+        # final representation
         api_endpoint1_average = api_endpoint1[-1,:]
         
 
@@ -111,27 +109,20 @@ def points_dist(point1,point2,mean=True):
     print(torch.norm(api_endpoint1_average - api_endpoint2_average))
     print(torch.cosine_similarity(api_endpoint1_average.view(1,-1),api_endpoint2_average.view(1,-1)))
     
-points_dist('a114,f18,f1,f1,f3*','a114,f18,f1,f1,f3*')
-points_dist('a114,f18,f1,f1,f3*','a114,f18,f1,f1,f3*',False)
-points_dist('a114,f18','a214,f19')
-points_dist('a114,f18','a214,f18',False)
-points_dist('a114,f18','a214,f19')
-points_dist('a114,f18','a214,f19',False)
-
-points_dist('a114,f18,f1,f1,f3*','a124,f19,f1,f1,f3*')
-points_dist('a114,f18,f1,f1,f3*','a124,f19,f3,f3,b3*')
-points_dist('a124,f19,f1,f1,f3*','a124,f19,f3,f3,b3*')
-
-points_dist('a225,f39,b2,f3,b1,f1,f1,f2,b3,b2,b1,f1,f1,f2,b3,b3,b1,f1,f3,s3,f1*','a216,f28,f1,f3,b3,b3,b3,b2,b3,s2,f3,b2,f1,f1,f1,f1,f3,b3,b2,f3,b3,b1,f1,f3,b2,y1,f3,b3,z1,f1,f2*')
-
-points_dist('a216,b28,f3,b3,s3,y1n@','a224,b28,b1,f1,u3,s3,s3n#')
+points_dist('<pad>,a114,f18,f1,f1,f3*','<pad>,a114,f18,f1,f1,f3*')
+points_dist('<pad>,a114,f18,f1,f1,f3*','<pad>,a114,f18,f1,f1,f3*',False)
+points_dist('<pad>,a114,f18','<pad>,a214,f18')
+points_dist('<pad>,a114,f18','<pad>,a214,f18',False)
+points_dist('<pad>,a114,f18','<pad>,a214,f19')
+points_dist('<pad>,a114,f18','<pad>,a214,f19',False)
+# cosine distance of the final representation is probably preferred?
 
 #%%
 
-# embed all points with 5 or moreshots
+# embed all points
 api_embeddings = []
 
-file = open(r'C:\gavin\software\python\pytorch\karpathy\makemore\makemore\tennis_shots_new_all_final_reduced.txt','r')
+file = open(r'tennis_shot_data_unique.txt','r')
 
 all_pts = [line.strip() for line in file]
 file.close()  
@@ -139,14 +130,117 @@ file.close()
 model.eval()
 for pt in all_pts:
     input_idx = torch.tensor(vocab(mytokenizer(pt))).view(1,-1)
+    # put a zero at the start for <pad>
+    # otherwise the positional encoding will be wrong
+    input_idx = torch.cat((torch.tensor(0).view(1,1),input_idx),axis=1)
     output,api_endpoint = model(input_idx,return_embedding=True)
     api_endpoint = api_endpoint[0,:,:]
+    # either average the embeddings or take the last embedding
+    # the last embedding is ok for gpt model
+    # however if we are trying to represent the whole point 
+    # need to average over all embeddings as the final embedding
+    # is the end of the point
     api_endpoint_average = api_endpoint.mean(axis=0)
-    api_endpoint_average = api_endpoint[-2,:]
+    #api_endpoint_average = api_endpoint[-1,:]
     api_embeddings.append(api_endpoint_average.detach().numpy())
 
 model.train()
+# create a little vector database of embeddings
 api_embeddings_np = np.array(api_embeddings)
 np.savetxt('point_embeddings_transformer.txt',api_embeddings_np, delimiter=',')
+
+# can plot as well
+plot_the_embedding_prodn.plot_embedding('point_embeddings_transformer.txt',all_pts,transparent=True)
+
+#%%
+
+# from this find the nearest point to the test point
+
+# WHAT I WOULD LIKE ARE TO FIND PARTIAL POINTS THAT HAVE A SIMILAR
+# REPRESENTATION IN PREDICTING THE NEXT POINT
+# say 2 similar serves- similar in the sense that the next 
+# shot probability is similar 
+
+
+# the points have endings that are endcoded in the vector database
+# hence these must a swell
+
+# if not need to represent the dataset differently without the ending
+test_point = '<pad>,a214,b28,f3,b3n#' # not a point in the dataset
+test_point = '<pad>,a214,b28,f3,s2d#' # a point
+
+test_point = '<pad>,a224,b28,f3'
+test_point = '<pad>,a224,b28,f1'
+test_point = '<pad>,a224,b28,b1'
+test_point = '<pad>,a214,b28,f1'
+test_point = '<pad>,a224,b29,f1,f1*'
+test_point = '<pad>,a224,b29,f1,f1n@'
+test_point = '<pad>,a225,f39'
+test_point = '<pad>,a226,f39'
+test_point = '<pad>,a226'
+test_point = '<pad>,a216'
+test_point = '<pad>,a114'
+# for example when it comes to representations to predict the 
+# next point these are very different
+test_point = '<pad>,a214,b38'
+test_point = '<pad>,a224,b39'
+test_point = '<pad>,a114,f1n#'
+
+
+out = model(torch.tensor(vocab(mytokenizer(test_point))).reshape(1,-1),return_embedding=True)
+'''
+vocab.lookup_tokens([out[0][0,-1,:].argmax()])
+vocab.lookup_tokens(out[0][0,-1,:].topk(10)[1].tolist())
+vocab.lookup_tokens([out[0][0,0,:].argmax()]) # predict from <pad> is vital
+vocab.lookup_tokens(out[0][0,0,:].topk(10)[1].tolist())
+# embeddings
+# mean
+out[1][0,:,:].mean(axis=0).shape
+# final
+out[1][0,-1,:].shape
+'''
+# pick the representation that matches how the dataset was represented
+# IF IT IS THE WHOLE POINT THEN THE FINAL EMBEDDING DOESN'T MAKE SENSE
+test_embed = out[1][0,:,:].mean(axis=0).detach().numpy()
+test_embed = out[1][0,-1,:].detach().numpy()
+
+distances = np.linalg.norm(api_embeddings_np-test_embed, axis=1)
+min_index = np.argmin(distances)
+min_index
+print(min_index)
+print(distances[min_index])
+print(api_embeddings_np[min_index])
+print(all_pts[min_index])
+# Cosine distance is defined as 1.0 minus the cosine similarity.
+distances = cosine_distances(api_embeddings_np,test_embed.reshape(1, -1))
+distances = distances.reshape(-1,)
+min_index = np.argmin(distances)
+min_index
+print(min_index)
+print(distances[min_index])
+print(api_embeddings_np[min_index])
+print(all_pts[min_index])
+
+
+
+# wrong
+'''
+non_zero_mask = (distances != 0)
+non_zero_values = distances[non_zero_mask]
+indices_of_smallest_values = np.argpartition(non_zero_values, 10)[:10]
+'''
+distances.shape[0] - (distances != 0).sum()
+
+# or all values
+#indices_of_smallest_values = np.argpartition(distances, (1,20))[:20]
+
+indices_of_smallest_values = np.argsort(distances)
+
+for i in indices_of_smallest_values[:20]:
+    print(all_pts[i])
+
+
+
+
 
 
