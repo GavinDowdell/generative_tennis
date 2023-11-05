@@ -8,6 +8,8 @@ python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt --type transformer --
 from tennis_gpt import *
 import plot_the_embedding_prodn
 import numpy as np
+from sklearn.metrics.pairwise import cosine_distances
+
 #%%
 
 # load the vocab
@@ -16,8 +18,8 @@ vocab = torch.load('./tennis_gpt/vocab.pt')
 # check the vocab works
 # must put in <pad> for the start of the point
 # otherwise the positional encoding is incorrect
-
 test_point = '<pad>,a114,f18,f1' 
+
 # The sequence makes sense as expecting a forehand shot here such as 
 # a114 is a first serve to the forehand side out wide hence must be 
 # followed by a forehand
@@ -50,7 +52,7 @@ config = ModelConfig(vocab_size=vocab_size, block_size=block_size,
 # behaves like a class not a dict as ModelConfig is a data class
 config.n_layer
 
-
+#%%
 # will first have to restore the model
 # Instantiate the model which will give the model the architecture with random weights
 model = Transformer(config)
@@ -107,7 +109,7 @@ def points_dist(point1,point2,mean=True):
         api_endpoint2_average = api_endpoint2[-1,:]
     
     print(torch.norm(api_endpoint1_average - api_endpoint2_average))
-    print(torch.cosine_similarity(api_endpoint1_average.view(1,-1),api_endpoint2_average.view(1,-1)))
+    print(1-torch.cosine_similarity(api_endpoint1_average.view(1,-1),api_endpoint2_average.view(1,-1)))
     
 points_dist('<pad>,a114,f18,f1,f1,f3*','<pad>,a114,f18,f1,f1,f3*')
 points_dist('<pad>,a114,f18,f1,f1,f3*','<pad>,a114,f18,f1,f1,f3*',False)
@@ -119,7 +121,7 @@ points_dist('<pad>,a114,f18','<pad>,a214,f19',False)
 
 #%%
 
-# embed all points
+# embed all points, cluster and plot
 api_embeddings = []
 
 file = open(r'tennis_shot_data_unique.txt','r')
@@ -153,64 +155,44 @@ np.savetxt('point_embeddings_transformer.txt',api_embeddings_np, delimiter=',')
 plot_the_embedding_prodn.plot_embedding('point_embeddings_transformer.txt',all_pts,transparent=True)
 
 #%%
-
+# Retrieval closest points from a test point
 # from this find the nearest point to the test point
 
-# WHAT I WOULD LIKE ARE TO FIND PARTIAL POINTS THAT HAVE A SIMILAR
-# REPRESENTATION IN PREDICTING THE NEXT POINT
-# say 2 similar serves- similar in the sense that the next 
-# shot probability is similar 
-
-
-# the points have endings that are endcoded in the vector database
-# hence these must a swell
-
-# if not need to represent the dataset differently without the ending
+test_point = '<pad>,a114,f1n#'
 test_point = '<pad>,a214,b28,f3,b3n#' # not a point in the dataset
 test_point = '<pad>,a214,b28,f3,s2d#' # a point
 
-test_point = '<pad>,a224,b28,f3'
-test_point = '<pad>,a224,b28,f1'
-test_point = '<pad>,a224,b28,b1'
-test_point = '<pad>,a214,b28,f1'
-test_point = '<pad>,a224,b29,f1,f1*'
-test_point = '<pad>,a224,b29,f1,f1n@'
-test_point = '<pad>,a225,f39'
-test_point = '<pad>,a226,f39'
-test_point = '<pad>,a226'
-test_point = '<pad>,a216'
-test_point = '<pad>,a114'
-# for example when it comes to representations to predict the 
-# next point these are very different
-test_point = '<pad>,a214,b38'
-test_point = '<pad>,a224,b39'
-test_point = '<pad>,a114,f1n#'
-
 
 out = model(torch.tensor(vocab(mytokenizer(test_point))).reshape(1,-1),return_embedding=True)
-'''
-vocab.lookup_tokens([out[0][0,-1,:].argmax()])
+# check the logits of the test_point are behaving correctly
+# the logit is over the shot vocab hence should be a good 
+# representation of the next shot
+# should be <pad> as the point is over
 vocab.lookup_tokens(out[0][0,-1,:].topk(10)[1].tolist())
-vocab.lookup_tokens([out[0][0,0,:].argmax()]) # predict from <pad> is vital
-vocab.lookup_tokens(out[0][0,0,:].topk(10)[1].tolist())
-# embeddings
-# mean
-out[1][0,:,:].mean(axis=0).shape
-# final
-out[1][0,-1,:].shape
-'''
+# from the second last shot
+vocab.lookup_tokens(out[0][0,-2,:].topk(10)[1].tolist())
+
 # pick the representation that matches how the dataset was represented
 # IF IT IS THE WHOLE POINT THEN THE FINAL EMBEDDING DOESN'T MAKE SENSE
+#average
 test_embed = out[1][0,:,:].mean(axis=0).detach().numpy()
+#final representation
 test_embed = out[1][0,-1,:].detach().numpy()
 
+#%%
+# Euclidean distances
 distances = np.linalg.norm(api_embeddings_np-test_embed, axis=1)
 min_index = np.argmin(distances)
-min_index
 print(min_index)
 print(distances[min_index])
 print(api_embeddings_np[min_index])
 print(all_pts[min_index])
+
+indices_of_smallest_values = np.argsort(distances)
+
+for i in indices_of_smallest_values[:20]:
+    print(all_pts[i])
+#%%  
 # Cosine distance is defined as 1.0 minus the cosine similarity.
 distances = cosine_distances(api_embeddings_np,test_embed.reshape(1, -1))
 distances = distances.reshape(-1,)
@@ -221,24 +203,12 @@ print(distances[min_index])
 print(api_embeddings_np[min_index])
 print(all_pts[min_index])
 
-
-
-# wrong
-'''
-non_zero_mask = (distances != 0)
-non_zero_values = distances[non_zero_mask]
-indices_of_smallest_values = np.argpartition(non_zero_values, 10)[:10]
-'''
-distances.shape[0] - (distances != 0).sum()
-
-# or all values
-#indices_of_smallest_values = np.argpartition(distances, (1,20))[:20]
-
 indices_of_smallest_values = np.argsort(distances)
 
 for i in indices_of_smallest_values[:20]:
     print(all_pts[i])
 
+#%%
 
 
 

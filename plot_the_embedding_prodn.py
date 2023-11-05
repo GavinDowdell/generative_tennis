@@ -58,7 +58,7 @@ def plot_embedding(dataset,labels,num_cluster=8,transparent=False):
     plotly.offline.plot(fig,filename='pca2.html')
 
     # don't do the tsne scatter right now 
-    #return
+    return
     tsne2 = TSNE(n_components=2,init='pca',random_state=123,n_iter=1000)
     data_tsne2 = tsne2.fit_transform(npdata_norm)
     d = {'letter': labels, 'clusters':kmeans_clusters,'tsne1': data_tsne2[:,0], 'tsne2': data_tsne2[:,1]}
