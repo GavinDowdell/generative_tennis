@@ -22,7 +22,7 @@ def plot_embedding(dataset,labels,num_cluster=8,transparent=False):
     #npdata_norm = (npdata - npdata.min(axis=0))/(npdata.max(axis=0) - npdata.min(axis=0))
     npdata_norm = scaler.fit_transform(npdata)
     # cluster in the original embedding dimension
-    kmeans_model = KMeans(n_clusters=num_cluster,random_state=0)
+    kmeans_model = KMeans(n_clusters=num_cluster,random_state=42)
     # fit the clustering model in the embedding dimension
     kmeans = kmeans_model.fit(npdata_norm)
     # assign each token embedding to a cluster

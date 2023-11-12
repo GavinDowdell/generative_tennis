@@ -22,8 +22,7 @@ def mytokenizer(pt):
     return pt.strip().split(',')
 
 def yield_tokens(file_list):
-     for line in file_list:
-            # don't need a complex tokenizer here - yields a list via a simple tokenizer
+     for line in file_list:            
             yield mytokenizer(line)
 
 
@@ -40,16 +39,6 @@ class ModelConfig:
     n_embd2: int = 64
     n_head: int = 4
 
-# how to use the dataclass
-tmp = ModelConfig(block_size=50)
-vars(tmp)
-tmp.n_head
-tmp.block_size
-tmp = ModelConfig(n_head = 2)
-tmp.n_head
-tmp.block_size
-
-# subclass Dataset
 class PointsDataset(Dataset):
 
     def __init__(self, pts,vocab,max_pt_length):
@@ -105,13 +94,6 @@ class NewGELU(nn.Module):
 
 
 class CausalSelfAttention(nn.Module):
-    """
-    A vanilla multi-head masked self-attention layer with a projection at the end.
-    It is possible to use torch.nn.MultiheadAttention here but I am including an
-    explicit implementation here to show that there is nothing too scary here.
-    
-    Note the number of heads to capture different contextual relationships
-    """
 
     def __init__(self, config):
         super().__init__()
@@ -208,236 +190,6 @@ class Transformer(nn.Module):
 
 
 #%%
-class RNN(nn.Module):
-    # instantiate with config 
-    def __init__(self, config, cell_type):
-        super().__init__()
-        # the config object gets passed into the constructor which means it is available to use
-        # in the constructor only
-        # to ensure the config values are available to ther methods in the class
-        # then assign the values to self
-        # self. means they are available to other
-        # methods on the class but not accessed outside of the class
-        self.block_size = config.block_size
-        self.vocab_size = config.vocab_size
-        # get the starting token embedding and starting hidden state
-        # the starting hidden state
-        #self.start = nn.Parameter(torch.zeros(1, config.n_embd2)) 
-        # token embeddings table
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd,padding_idx=0) 
-        if cell_type == 'rnn':
-            self.rnn = nn.RNN(config.n_embd,config.n_embd,batch_first=True)
-        elif cell_type == 'gru':
-            self.rnn = nn.GRU(config.n_embd,config.n_embd,batch_first=True)
-        
-        #self.rnn = nn.LSTM(config.n_embd,config.n_embd,batch_first=True)
-        self.lm_head = nn.Linear(config.n_embd, self.vocab_size)
-
-    def get_block_size(self):
-        # note that the config is not passed in here but self is hence 
-        # any attribute assigned to self is available
-        return self.block_size 
-
-    def forward(self, idx, targets=None):
-        device = idx.device
-        b, t = idx.size()
-
-        # embed all the integers up front and all at once for efficiency
-        emb = self.wte(idx) # (b, t, n_embd)
-
-        # sequentially iterate over the inputs and update the RNN state each tick
-        ## hprev = self.start.expand((b, -1)) # expand out the batch dimension
-        # at this point we gather the hidden layers from each point in the 
-        # sequence as it is from each of these h vectors we predict the next token
-        ##hiddens = []
-        ##for i in range(t):
-        ##    xt = emb[:, i, :] # (b, n_embd)
-            # now get the new hidden
-        ##    ht = self.cell(xt, hprev) # (b, n_embd2)
-        ##    hprev = ht
-        ##    hiddens.append(ht)
-
-        # decode the outputs
-        # (b, t, n_embd2) - batch, timesteps,num units in hidden layer 
-        # - ultimate extract the final hidden state at the final timestep for each batch
-        # maybe not in this case as it is predicting at each timestep
-        # definitely not in this case we are keeping the hidden representation at each sequence
-        # as that is being used to
-        # 1. capture the latent structure TO THAT POINT
-        # 2. capture the representation at that point to predict the aligned token
-        #hidden = torch.stack(hiddens, 1)
-        hidden, last = self.rnn(emb)        
-        logits = self.lm_head(hidden)
-
-        # if we are given some desired targets also calculate the loss
-        loss = None
-        if targets is not None:
-            # the cross_entropy loss activates the logit
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) # looks like here logits.view(-1, logits.size(-1)) will extract the last hidden state only
-
-        return logits, loss
-
-#%%
-
-class MLPMine1(nn.Module):
-    """
-    NN looking at the previous token only - hence an AR1 model
-    can choose a linear head of a single layer MLP
-    """
-    # instantiate with config
-    def __init__(self, config,linear_head=True):
-        super().__init__()
-        self.linear_head = linear_head
-        self.block_size = config.block_size
-        self.vocab_size = config.vocab_size
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd,padding_idx=0) 
-        self.lm_head = nn.Linear(config.n_embd, self.vocab_size) # decode to the output here
-        self.mlp = nn.Sequential(
-            nn.Linear(config.n_embd, config.n_embd2),
-            nn.Tanh(),
-            nn.Linear(config.n_embd2, self.vocab_size) # decode to the output here
-        )
-
-    def get_block_size(self):
-        return self.block_size
-
-    def forward(self, idx, targets=None):
-        device = idx.device
-        b, t = idx.size()
-        emb = self.wte(idx) # (b, t, n_embd)
-        hiddens = []
-        for i in range(t):
-            xt = emb[:, i, :] # (b, n_embd)
-            hiddens.append(xt)
-        # Turns a list into a tensor ready for a linear layer
-        hidden = torch.stack(hiddens, 1)
-        if self.linear_head:
-            logits = self.lm_head(hidden)
-        else:
-            logits = self.mlp(hidden)
-        loss = None
-        if targets is not None:
-            # the cross_entropy loss activates the logit
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) # looks like here logits.view(-1, logits.size(-1)) will extract the last hidden state only
-
-        return logits, loss
-#%%
-
-class MLPMine3(nn.Module):
-    """
-    NN looking at the previous three token only - hence an AR3 model
-    can choose a linear head of a single layer MLP
-    """
-    # instantiate with config
-    def __init__(self, config,linear_head=True):
-        super().__init__()
-        self.linear_head = linear_head
-        self.block_size = config.block_size
-        self.vocab_size = config.vocab_size
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd,padding_idx=0) 
-        self.lm_head = nn.Linear(3*config.n_embd, self.vocab_size) # decode to the output here
-        self.mlp = nn.Sequential(
-            nn.Linear(3 * config.n_embd, config.n_embd2),
-            nn.Tanh(),
-            nn.Linear(config.n_embd2, self.vocab_size) # decode to the output here
-        )
-        
-
-    def get_block_size(self):
-        return self.block_size
-
-    def forward(self, idx, targets=None):
-        device = idx.device
-        b, t = idx.size()
-        emb = self.wte(idx) # (b, t, n_embd)
-        hiddens = []
-        for i in range(t):
-            if i == 0:
-                xt = torch.cat([emb[:, i, :],emb[:, i, :],emb[:, i, :]],dim=1)
-            elif i == 1:
-                xt = torch.cat([emb[:, i-1, :],emb[:, i-1, :],emb[:, i, :]],dim=1)
-            else:
-                xt = torch.cat([emb[:, i-2, :],emb[:, i-1, :],emb[:, i, :]],dim=1)
-                
-            hiddens.append(xt)
-
-        hidden = torch.stack(hiddens, 1) 
-        if self.linear_head:
-            logits = self.lm_head(hidden)
-        else:
-            logits = self.mlp(hidden)
-        loss = None
-        if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) 
-        return logits, loss
-
-#%%
-
-class CBOW(nn.Module):
-    """
-    NN looking at the previous three token only and then averaging them like a CBOW
-    can choose a linear head of a single layer MLP
-    """
-    # instantiate with config
-    def __init__(self, config,linear_head=True):
-        super().__init__()
-        self.linear_head = linear_head
-        self.block_size = config.block_size
-        self.vocab_size = config.vocab_size
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd,padding_idx=0) 
-        self.lm_head = nn.Linear(config.n_embd, self.vocab_size)
-        self.mlp = nn.Sequential(
-            nn.Linear(config.n_embd, config.n_embd2),
-            nn.Tanh(),
-            nn.Linear(config.n_embd2, self.vocab_size) # decode to the output here
-        )
-
-    def get_block_size(self):
-        return self.block_size
-
-    def forward(self, idx, targets=None):
-        device = idx.device
-        b, t = idx.size()
-        hiddens = []
-        idx = torch.cat([torch.zeros((b,2)),idx],axis=1).to(torch.int64)
-        for i in range(t):
-            inputs_ = idx[:,i:i+3]
-            x = self.wte(inputs_)
-            x = x.mean(axis=1)
-            hiddens.append(x)
-        hidden = torch.stack(hiddens, 1) 
-        if self.linear_head:
-            logits = self.lm_head(hidden)
-        else:
-            logits = self.mlp(hidden)
-        loss = None
-        if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) # looks like here logits.view(-1, logits.size(-1)) will extract the last hidden state only
-
-        return logits, loss
-
-class Bigram(nn.Module):
-    """
-    Bigram Language Model 'neural net', simply a lookup table of logits for the
-    next character given a previous character.
-    """
-    # instantiate with config
-    def __init__(self, config):
-        super().__init__()
-        n = config.vocab_size
-        self.logits = nn.Parameter(torch.randn((n, n)))
-
-    def get_block_size(self):
-        return 1 # this model only needs one previous character to predict the next
-
-    def forward(self, idx, targets=None):
-        logits = self.logits[idx]
-        loss = None
-        if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-        return logits, loss
-#%% -----------------------------------------------------------------------------
-# helper functions for evaluating and sampling from the model
 
 @torch.no_grad()
 def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None,startidx=[-1]):
@@ -545,51 +297,23 @@ def create_datasets(input_file):
     all_pts = [line.strip() for line in file]
     file.close()  
     # build the vocab
-    '''
-    def mytokenizer(pt):
-        return pt.strip().split(',')
-
-    def yield_tokens(file_list):
-         for line in file_list:
-                # don't need a complex tokenizer here - yields a list via a simple tokenizer
-                yield mytokenizer(line)
-    '''
     # specials go first
     vocab = build_vocab_from_iterator(yield_tokens(all_pts),specials=["<pad>"])
-    #yield_tokens(r'C:\gavin\software\python\pytorch\karpathy\makemore\makemore\tennis_shots_new_all_final_reduced.txt'), 
-     
-    itos = vocab.get_itos()
-    len(itos)
-
-    vocab(mytokenizer('a216,f37,b3,s3,b3,s3,b3,s3,b1d@,<pad>'))
-
     max_pt_length = max(len(pt.split(',')) for pt in all_pts)
-
-
     train_dataset = PointsDataset(all_pts,vocab, max_pt_length)
-
     test_set_size = int(len(all_pts) * 0.2) # 20% of the training set, or up to 1000 examples
     rp = torch.randperm(len(all_pts)).tolist()
     train_words = [all_pts[i] for i in rp[:-test_set_size]]
     test_words = [all_pts[i] for i in rp[-test_set_size:]]
     print(f"split up the dataset into {len(train_words)} training examples and {len(test_words)} test examples")
-
-    # wrap in dataset objects
-    # must change the decode and encode
     train_dataset = PointsDataset(train_words, vocab, max_pt_length)
     test_dataset = PointsDataset(test_words, vocab, max_pt_length)
-
     return train_dataset, test_dataset
 
 
 #%%
 
 class InfiniteDataLoader:
-    """
-    this is really hacky and I'm not proud of it, but there doesn't seem to be
-    a better way in PyTorch to just create an infinite dataloader?
-    """
-
     def __init__(self, dataset, **kwargs):
         train_sampler = torch.utils.data.RandomSampler(dataset, replacement=True, num_samples=int(1e10))
         self.train_loader = DataLoader(dataset, sampler=train_sampler, **kwargs)
@@ -608,9 +332,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Tennis Generative Model")
     parser.add_argument('--input-file', '-i', type=str, default='names.txt', help="input file with things one per line")
     parser.add_argument('--work-dir', '-o', type=str, default='out', help="output working directory")
-    parser.add_argument('--resume', action='store_true', help="when this flag is used, we will resume optimization from existing model in the workdir")
     parser.add_argument('--sample-only', action='store_true', help="just sample from the model and quit, don't train")
-    parser.add_argument('--num-workers', '-n', type=int, default=4, help="number of data workers for both train/test")
     parser.add_argument('--max-steps', type=int, default=-1, help="max number of optimization steps to run for, or -1 for infinite.")
     parser.add_argument('--device', type=str, default='cpu', help="device to use for compute, examples: cpu|cuda|cuda:2|mps")
     parser.add_argument('--seed', type=int, default=3407, help="seed")
@@ -628,23 +350,8 @@ if __name__ == '__main__':
     parser.add_argument('--initial-token', '-it', type=str, default=None, help="specify token of first shot")
     args = parser.parse_args()
     input(f'\n the inputs are {vars(args)}.\nEnter to continue')
-    type(vars(args)) # dict
+    print(type(vars(args))) # dict
     params = vars(args)
-    # note args is a dict so it you want to run it with inputs as below modify params
-    # run makemore_spyder_tennis_shots.py -i tennis_shots_new_all_final_reduced.txt -o tennis_mlp --type mlp --max-steps 10000
-    # access the individual dict values in a few ways
-    params['input_file']
-    args.input_file
-    
-    # make modifications if you wish
-    # only uncomment if you run within spyder
-    #args.input_file = 'tennis_shots_new_all_final_reduced.txt'
-    #args.work_dir = 'tennis_mlp'
-    #args.type = 'mlp'
-    #args.max_steps = 10000
-    #args
-
-
 
     # system inits
     torch.manual_seed(args.seed)
@@ -656,71 +363,15 @@ if __name__ == '__main__':
     # input_file comes from the command line 
     print(f"The input file is {args.input_file}")
     train_dataset, test_dataset = create_datasets(args.input_file)
-    train_dataset[0]
-    train_dataset[0]
-    train_dataset.itos
-    train_dataset.stoi
     vocab_size = train_dataset.get_vocab_size()
     block_size = train_dataset.get_output_length()
-    print(f"dataset determined that: {vocab_size=}, {block_size=}")
-    print('\nCheck vocab and block size.\nEnter to continue')
-    input("\nEnter to continue")
 
-    # use decode to decode ints from above
-    print("The first vector from the training dataset is\n")
-    print(train_dataset[0][0])
-    print("\nThe decode is\n")
-    print(train_dataset.decode(list([i for i in train_dataset[0][0].numpy() if i > 0])))
-    input("\nEnter to continue")
-
-    # use decode to decode ints from above
-    train_dataset.decode(list([i for i in train_dataset[0][0].numpy() if i > 0]))
-
-    # init model via new dataclass class
-    # must instatiate with vocab_size and block_size
-    # the block size will be the max number of char in the words
-    # vocab size is easy - number of char
     config = ModelConfig(vocab_size=vocab_size, block_size=block_size,
                        n_layer=args.n_layer, n_head=args.n_head,
                        n_embd=args.n_embd, n_embd2=args.n_embd2)
-    if args.type == 'transformer':
-        model = Transformer(config)
-    elif args.type == 'mytransformer':
-        model = MyTransformer(config)
-    elif args.type == 'bigram':
-        model = Bigram(config)
-    elif args.type == 'mlp':
-        model = MLP(config)
-    elif args.type == 'cbow':
-            #model = CBOW(config)
-            model = CBOW(config,linear_head=False)
-    elif args.type == 'mlpmine1':
-        #model = MLPMine1(config)
-        model = MLPMine1(config,linear_head=False)
-    elif args.type == 'mlpmine2':
-        model = MLPMine2(config)
-    elif args.type == 'mlpmine3':
-        model = MLPMine3(config)
-    elif args.type == 'rnn':
-        model = RNN(config, cell_type='rnn')
-    elif args.type == 'gru':
-        model = RNN(config, cell_type='gru')
-    elif args.type == 'myrnn':
-        model = MyRNN(config)
-    elif args.type == 'bow':
-        model = BoW(config)
-    else:
-        raise ValueError(f'model type {args.type} is not recognized')
+    model = Transformer(config)
     model.to(args.device)
-    print("The model is\n")
-    print(model)
-    print("\nPrint out initial emb\n")
-    if args.type in ['transformer','mytransformer']:
-        emb = model.transformer.wte.weight
-    elif args.type == 'bigram':
-        emb = model.logits
-    else:
-        emb = model.wte.weight
+    emb = model.transformer.wte.weight
     emb_save_initial = emb.detach().numpy()
     np.savetxt('emb_initial.txt',emb_save_initial, delimiter=',')
     
@@ -733,12 +384,7 @@ if __name__ == '__main__':
             print_samples(num=50)
         else:
             # numericalise the initial token here before passing in
-            # to add another token do here
-            # how to eventually use multiple inputs via a list
-            # torch.tensor([3,4]) * torch.ones((10,2),dtype=torch.int64)
-            # eventually pass in as a list and use torch.tensor([3,4]) * torch.ones((10,2),dtype=torch.int64)
             initial_token_list = [train_dataset.stoi[val] for val in args.initial_token.split(',')]
-            #print_samples(num=50,initial_token=train_dataset.stoi[args.initial_token])
             print_samples(num=50,initial_token=initial_token_list)
         sys.exit()
 
@@ -809,12 +455,7 @@ if __name__ == '__main__':
         # termination conditions
         if step == args.max_steps/2:
             print("\nSave emb\n")
-            if args.type in ['transformer','mytransformer']:
-                emb = model.transformer.wte.weight
-            elif args.type == 'bigram':
-                emb = model.logits
-            else:
-                emb = model.wte.weight
+            emb = model.transformer.wte.weight
             emb_save_half = emb.detach().numpy()
             np.savetxt('emb_half.txt',emb_save_half, delimiter=',')
         
@@ -822,12 +463,7 @@ if __name__ == '__main__':
             break
 
     # if writeout
-    if args.type in ['transformer','mytransformer']:
-        emb = model.transformer.wte.weight
-    elif args.type == 'bigram':
-        emb = model.logits
-    else:
-        emb = model.wte.weight
+    emb = model.transformer.wte.weight
     emb_save = emb.detach().numpy()
     np.savetxt('emb_final.txt',emb_save, delimiter=',')
 
