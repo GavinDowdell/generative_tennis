@@ -1,4 +1,7 @@
 import os
+# usage
+# C:\gavin\software\python\pytorch\karpathy\makemore\makemore>python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt  --max-steps 10000
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import sys
 import time
@@ -332,6 +335,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Tennis Generative Model")
     parser.add_argument('--input-file', '-i', type=str, default='names.txt', help="input file with things one per line")
     parser.add_argument('--work-dir', '-o', type=str, default='out', help="output working directory")
+    parser.add_argument('--resume', action='store_true', help="when this flag is used, we will resume optimization from existing model in the workdir")
     parser.add_argument('--sample-only', action='store_true', help="just sample from the model and quit, don't train")
     parser.add_argument('--max-steps', type=int, default=-1, help="max number of optimization steps to run for, or -1 for infinite.")
     parser.add_argument('--device', type=str, default='cpu', help="device to use for compute, examples: cpu|cuda|cuda:2|mps")

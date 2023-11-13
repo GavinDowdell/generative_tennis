@@ -48,6 +48,10 @@ Language Models – simply doing things no one really expected.
 However long term the ability of these models to uncover latent
 structure via the embeddings may prove just as useful.
 
+An example of a point embedding plot is shown below
+
+![Image](point_embedding_example.png)
+
 Going to need Data and lots of it!!
 
 * Unfortunately the Hawkeye Data is not publicly available - yet
