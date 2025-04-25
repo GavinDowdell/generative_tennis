@@ -1,6 +1,6 @@
 import os
 # usage
-# C:\gavin\software\python\pytorch\karpathy\makemore\makemore>python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt  --max-steps 10000
+# python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt  --max-steps 10000
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import sys
@@ -354,6 +354,7 @@ if __name__ == '__main__':
     parser.add_argument('--initial-token', '-it', type=str, default=None, help="specify token of first shot")
     args = parser.parse_args()
     input(f'\n the inputs are {vars(args)}.\nEnter to continue')
+    input(f'\n Is cuda available {torch.cuda.is_available()} and device is {args.device}.\nEnter to continue')
     print(type(vars(args))) # dict
     params = vars(args)
 

@@ -14,10 +14,10 @@ The points data is in the file tennis_shot_data.txt which was derived from the i
 * Code structure
 
 
-1. Clone the repo or download the files
-2. use conda to setup an environment with the requirements.txt file
-3. activate the new environment
-4. chdir to the root directory of tennis_gpt.py
+1. Clone the repo with git clone https://github.com/GavinDowdell/generative_tennis.git 
+2. cd generative_tennis
+3. conda env create -f environment.yml to setup an environment with the environment.yml file
+4. conda activate DL_latest_new
 5. use the code as per below
 
 
