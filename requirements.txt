@@ -1,0 +1,10 @@
+dash==2.17.1
+matplotlib==3.8.4
+numpy==1.26.4
+pandas==2.2.2
+plotly==5.22
+scikit-learn==1.4.2
+spacy==3.8.4
+tensorboard==2.17.1
+torch==2.0.0
+torchtext==0.15.1

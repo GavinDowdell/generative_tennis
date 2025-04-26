@@ -1,7 +1,39 @@
-import os
-# usage
-# python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt  --max-steps 10000
+# Colab and local version
+#
+# usage:
+# python tennis_gpt.py -h for all options
+# -i for the datasets
+# -type for the model type
+# -o for the output directory
+# are the main options
+#
+# full training:
+# can swithch between different model types with the type argument choosing from mlpmine1|mlpmine3|rnn|gru|lstm|transformer for different modeeling options
+# python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt\transformer  --max-steps 10000 --type transformer
+#
+# sample from trained model:
+# For sample only still need the dataset to extract the vocab and do the testing
+# Supplying an initial shot sequence via --initial-token is optional
+# Note that --type must match the model type that developed the model saved in -o working_directory
+# python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt\transformer --type transformer --sample-only --initial-token a116,b38
+#
+# fine tuning on a different dataset:
+# The -o directory is the location of the original pretrained model. The fine tuned model and evaluation results will be stored in a sub-directory under this called finetune.
+# Also the dataset for training is the fine tuning dataset which is trying to align the model differently in this case tennis_shot_data_fine_tune.txt
+# Note the vocab is read from ./master_vocab/vocab.pt so it maintained there
+# python tennis_gpt.py -i tennis_shot_data_fine_tune.txt -o tennis_gpt\transformer  --max-steps 10000  --device cpu --type transformer --seed 420 --fine_tuning
+#
+# Once fine-tuned inference can be run on the new fine tuned model
+# Either of these will work depending upon which dataset you want to use to test the output. 
+# python tennis_gpt.py -i tennis_shot_data_fine_tune.txt -o tennis_gpt\transformer\finetune  --type transformer --seed 420 --sample-only --initial-token a116,b18 --fine_tuning
+# python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt\transformer\finetune  --type transformer --seed 420 --sample-only --initial-token a116,b18 --fine_tuning
+#
+# note that the --fine_tuning option means that
+# create_datasets(args.input_file,prebuilt_vocab=True)
+# has prebuilt_vocab=True
 
+import os
+os.environ["OMP_NUM_THREADS"] = "2"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import sys
 import time
@@ -20,6 +52,8 @@ import numpy as np
 from torchtext.vocab import build_vocab_from_iterator
 from torchtext.data.utils import get_tokenizer
 import spacy
+import subprocess
+import plot_the_embedding_prodn
 
 def mytokenizer(pt):
     return pt.strip().split(',')
@@ -192,7 +226,112 @@ class Transformer(nn.Module):
             return logits, loss
 
 
-#%%
+# RNN versions
+class RNN(nn.Module):
+    # instantiate with config 
+    def __init__(self, config, cell_type):
+        super().__init__()
+        self.block_size = config.block_size
+        self.vocab_size = config.vocab_size
+        self.wte = nn.Embedding(config.vocab_size, config.n_embd,padding_idx=0)
+        # select the type of rnn
+        if cell_type == 'rnn':
+            self.rnn = nn.RNN(config.n_embd,config.n_embd,batch_first=True)
+        elif cell_type == 'gru':
+            self.rnn = nn.GRU(config.n_embd,config.n_embd,batch_first=True)
+        elif cell_type == 'lstm':
+            self.rnn = nn.LSTM(config.n_embd,config.n_embd,batch_first=True)
+        self.lm_head = nn.Linear(config.n_embd, self.vocab_size)
+    def get_block_size(self):
+        return self.block_size 
+
+    def forward(self, idx, targets=None):
+        device = idx.device
+        b, t = idx.size()
+        emb = self.wte(idx)
+        hidden, last = self.rnn(emb)        
+        logits = self.lm_head(hidden)
+        loss = None
+        if targets is not None:
+            # the cross_entropy loss activates the logit
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) # looks like here logits.view(-1, logits.size(-1)) will extract the last hidden state only
+
+        return logits, loss
+
+class MLPMine1(nn.Module):
+    # instantiate with config
+    def __init__(self, config):
+        super().__init__()
+        self.block_size = config.block_size
+        self.vocab_size = config.vocab_size
+        self.wte = nn.Embedding(config.vocab_size, config.n_embd,padding_idx=0) 
+        self.mlp = nn.Sequential(
+            nn.Linear(config.n_embd, config.n_embd2),
+            nn.Tanh(),
+            nn.Linear(config.n_embd2, self.vocab_size) # decode to the output here
+        )
+
+    def get_block_size(self):
+        return self.block_size
+
+    def forward(self, idx, targets=None):
+        device = idx.device
+        b, t = idx.size()
+        emb = self.wte(idx) # (b, t, n_embd)
+        hiddens = []
+        for i in range(t):
+            xt = emb[:, i, :] # (b, n_embd)
+            hiddens.append(xt)
+        # Turns a list into a tensor ready for a linear layer
+        hidden = torch.stack(hiddens, 1)
+        logits = self.mlp(hidden)
+        loss = None
+        if targets is not None:
+            # the cross_entropy loss activates the logit
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) # looks like here logits.view(-1, logits.size(-1)) will extract the last hidden state only
+
+        return logits, loss
+
+class MLPMine3(nn.Module):
+    # instantiate with config
+    def __init__(self, config,linear_head=True):
+        super().__init__()
+        self.block_size = config.block_size
+        self.vocab_size = config.vocab_size
+        self.wte = nn.Embedding(config.vocab_size, config.n_embd,padding_idx=0) 
+        self.mlp = nn.Sequential(
+            nn.Linear(3 * config.n_embd, config.n_embd2),
+            nn.Tanh(),
+            nn.Linear(config.n_embd2, self.vocab_size) # decode to the output here
+        )
+        
+
+    def get_block_size(self):
+        return self.block_size
+
+    def forward(self, idx, targets=None):
+        device = idx.device
+        b, t = idx.size()
+        emb = self.wte(idx) # (b, t, n_embd)
+        hiddens = []
+        for i in range(t):
+            if i == 0:
+                xt = torch.cat([emb[:, i, :],emb[:, i, :],emb[:, i, :]],dim=1)
+            elif i == 1:
+                xt = torch.cat([emb[:, i-1, :],emb[:, i-1, :],emb[:, i, :]],dim=1)
+            else:
+                xt = torch.cat([emb[:, i-2, :],emb[:, i-1, :],emb[:, i, :]],dim=1)
+                
+            hiddens.append(xt)
+
+        hidden = torch.stack(hiddens, 1) 
+        logits = self.mlp(hidden)
+        loss = None
+        if targets is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) 
+        return logits, loss
+
+
 
 @torch.no_grad()
 def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None,startidx=[-1]):
@@ -204,6 +343,8 @@ def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k
     block_size = model.get_block_size()
     for count in range(max_new_tokens):
         # if the sequence context is growing too long we must crop it at block_size
+        # This is interesting as if the sequence goes on longer than the context length 
+        # then it just truncates the sequence that it is using
         idx_cond = idx if idx.size(1) <= block_size else idx[:, -block_size:]
         # forward the model to get the logits for the index in the sequence
         logits, _ = model(idx_cond)
@@ -225,7 +366,9 @@ def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k
                 #idx_next = torch.tensor([6,3])*torch.ones(idx.size(),dtype=torch.int64)
                 # idx_next = startidx*torch.ones(idx.size(),dtype=torch.int64)
                 idx_next = torch.tensor(startidx) * torch.ones((idx.size(0),len(startidx)),dtype=torch.int64)
-            else:    
+                idx_next.to(args.device)
+            else:
+                # probs is from model which is already on the device
                 idx_next = torch.multinomial(probs, num_samples=1)
         else:
             _, idx_next = torch.topk(probs, k=1, dim=-1)
@@ -243,7 +386,8 @@ def print_samples(num=10,initial_token=[-1]):
     top_k = args.top_k if args.top_k != -1 else None
     steps = train_dataset.get_output_length() - 1 # -1 because we already start with <START> token (index 0)
     # update this to a list of token indicies
-    X_samp = generate(model, X_init, steps, top_k=top_k, do_sample=True,startidx=initial_token).to('cpu')
+    #X_samp = generate(model, X_init, steps, top_k=top_k, do_sample=True,startidx=initial_token).to('cpu')
+    X_samp = generate(model, X_init, steps, top_k=top_k, do_sample=True,startidx=initial_token).to(args.device)
     train_samples, test_samples, new_samples = [], [], []
     for i in range(X_samp.size(0)):
         # get the i'th row of sampled integers, as python list
@@ -294,14 +438,20 @@ def evaluate(model, dataset, batch_size=50, max_batches=None):
 
 #%%
 
-def create_datasets(input_file):
+def create_datasets(input_file,prebuilt_vocab=False):
 
     file = open(input_file,'r')
     all_pts = [line.strip() for line in file]
     file.close()  
     # build the vocab
     # specials go first
-    vocab = build_vocab_from_iterator(yield_tokens(all_pts),specials=["<pad>"])
+    if prebuilt_vocab:
+        vocab = torch.load('./master_vocab/vocab.pt')
+        input("Using prebuilt vocab.\nEnter to continue\n")
+    else:
+        vocab = build_vocab_from_iterator(yield_tokens(all_pts),specials=["<pad>"])
+        input("Build vocab from the dataset.\nEnter to continue\n")
+    # essentially defines the context length
     max_pt_length = max(len(pt.split(',')) for pt in all_pts)
     train_dataset = PointsDataset(all_pts,vocab, max_pt_length)
     test_set_size = int(len(all_pts) * 0.2) # 20% of the training set, or up to 1000 examples
@@ -336,13 +486,14 @@ if __name__ == '__main__':
     parser.add_argument('--input-file', '-i', type=str, default='names.txt', help="input file with things one per line")
     parser.add_argument('--work-dir', '-o', type=str, default='out', help="output working directory")
     parser.add_argument('--resume', action='store_true', help="when this flag is used, we will resume optimization from existing model in the workdir")
+    # boolean argument
     parser.add_argument('--sample-only', action='store_true', help="just sample from the model and quit, don't train")
     parser.add_argument('--max-steps', type=int, default=-1, help="max number of optimization steps to run for, or -1 for infinite.")
     parser.add_argument('--device', type=str, default='cpu', help="device to use for compute, examples: cpu|cuda|cuda:2|mps")
     parser.add_argument('--seed', type=int, default=3407, help="seed")
     parser.add_argument('--top-k', type=int, default=-1, help="top-k for sampling, -1 means no top-k")
     # model definition
-    parser.add_argument('--type', type=str, default='transformer', help="model class type to use, bigram|mlp|rnn|gru|bow|transformer")
+    parser.add_argument('--type', type=str, default='transformer', help="model class type to use from mlpmine1|mlpmine3|rnn|gru|lstm|transformer")
     parser.add_argument('--n-layer', type=int, default=4, help="number of layers")
     parser.add_argument('--n-head', type=int, default=4, help="number of heads (in a transformer)")
     parser.add_argument('--n-embd', type=int, default=64, help="number of feature channels in the model")
@@ -352,9 +503,10 @@ if __name__ == '__main__':
     parser.add_argument('--learning-rate', '-l', type=float, default=5e-4, help="learning rate")
     parser.add_argument('--weight-decay', '-w', type=float, default=0.01, help="weight decay")
     parser.add_argument('--initial-token', '-it', type=str, default=None, help="specify token of first shot")
+    parser.add_argument('--fine_tuning', action='store_true', help='A boolean argument')
     args = parser.parse_args()
-    input(f'\n the inputs are {vars(args)}.\nEnter to continue')
-    input(f'\n Is cuda available {torch.cuda.is_available()} and device is {args.device}.\nEnter to continue')
+    print(f'\nThe inputs are {vars(args)}.\nEnter to continue')
+    print(f'\nIs cuda available {torch.cuda.is_available()} and device is {args.device}.\nEnter to continue')
     print(type(vars(args))) # dict
     params = vars(args)
 
@@ -367,23 +519,60 @@ if __name__ == '__main__':
     # init datasets
     # input_file comes from the command line 
     print(f"The input file is {args.input_file}")
-    train_dataset, test_dataset = create_datasets(args.input_file)
+    if args.fine_tuning:
+        train_dataset, test_dataset = create_datasets(args.input_file,prebuilt_vocab=True)
+    else:
+        train_dataset, test_dataset = create_datasets(args.input_file)
     vocab_size = train_dataset.get_vocab_size()
+    # get the context lenght as block_size and use that to define config
     block_size = train_dataset.get_output_length()
+    print(f"The context length is {block_size} and the vocab size is {vocab_size}\n")
+    #input('\nCheck Everything.\nEnter to continue')
 
-    config = ModelConfig(vocab_size=vocab_size, block_size=block_size,
+    if args.fine_tuning:
+        config = ModelConfig(vocab_size=vocab_size, block_size=86,
                        n_layer=args.n_layer, n_head=args.n_head,
                        n_embd=args.n_embd, n_embd2=args.n_embd2)
-    model = Transformer(config)
+    else:        
+        config = ModelConfig(vocab_size=vocab_size, block_size=block_size,
+                       n_layer=args.n_layer, n_head=args.n_head,
+                       n_embd=args.n_embd, n_embd2=args.n_embd2)
+    #model = Transformer(config)
+    if args.type == 'transformer':
+        model = Transformer(config)
+    elif args.type == 'rnn':
+        model = RNN(config, cell_type='rnn')
+    elif args.type == 'gru':
+        model = RNN(config, cell_type='gru')
+    elif args.type == 'lstm':
+        model = RNN(config, cell_type='lstm')
+    elif args.type == 'mlpmine1':
+        model = MLPMine1(config)
+    elif args.type == 'mlpmine2':
+        model = MLPMine2(config)
+    elif args.type == 'mlpmine3':
+        model = MLPMine3(config)
+
+
     model.to(args.device)
-    emb = model.transformer.wte.weight
-    emb_save_initial = emb.detach().numpy()
+    #emb = model.transformer.wte.weight
+    if args.type in ['transformer']:
+        emb = model.transformer.wte.weight
+    else:
+        emb = model.wte.weight
+
+    emb_save_initial = emb.detach().cpu().numpy()
     np.savetxt('emb_initial.txt',emb_save_initial, delimiter=',')
     
     print(f"model #params: {sum(p.numel() for p in model.parameters())}")
-    if args.resume or args.sample_only: # note: if we sample-only then we also assume we are resuming
+    if args.resume or args.sample_only or args.fine_tuning: # note: if we sample-only then we also assume we are resuming
         print("resuming from existing model in the workdir")
         model.load_state_dict(torch.load(os.path.join(args.work_dir, 'model.pt')))
+    # once the model is loaded as above to begin finetuning we want to save all results to a finetune sub-directory
+    if args.fine_tuning:
+        args.work_dir = os.path.join(args.work_dir, "finetune")
+        os.makedirs(args.work_dir, exist_ok=True)
+        writer = SummaryWriter(log_dir=args.work_dir)
     if args.sample_only:
         if args.initial_token == None:
             print_samples(num=50)
@@ -399,7 +588,7 @@ if __name__ == '__main__':
     # init dataloader
     #batch_loader = InfiniteDataLoader(train_dataset, batch_size=args.batch_size, pin_memory=True, num_workers=args.num_workers)
     batch_loader = InfiniteDataLoader(train_dataset, batch_size=args.batch_size)
-    input(f"before getting started lets have a look at a dataset item used to train our {args.type} on\n {train_dataset[0]} \n based on the word {train_dataset.decode_with_zeros(list(train_dataset[0][0].numpy()))}")
+    print(f"before getting started lets have a look at a dataset item used to train our {args.type} on\n {train_dataset[0]} \nbased on the word {train_dataset.decode_with_zeros(list(train_dataset[0][0].numpy()))}")
 
     # training loop
     best_loss = None
@@ -408,7 +597,17 @@ if __name__ == '__main__':
     # args.max_steps = 10000
     
     # a baseline get_vocab_size
-    input(f" The baseline loss is {-np.log(1/train_dataset.get_vocab_size())}\nEnter to continue")
+    print(f"\n--------------------------\nBaseline Loss\nAs the model decodes over the Vocab and therefore\nBased upon a random guess over the vocab the baseline loss is {-np.log(1/train_dataset.get_vocab_size())}\nEnter to continue")
+    input('\nCheck Everything.\nEnter to continue')
+    # open a file to track the best losses
+    out_path_loss_file = os.path.join(args.work_dir, "model_loss_best.txt")
+    out_path_loss_file_all = os.path.join(args.work_dir, "model_loss_all.txt")
+    with open(out_path_loss_file, 'w') as f:
+        f.write('step,train_loss,test_loss\n')
+    with open(out_path_loss_file_all, 'w') as f:
+        f.write('step,train_loss,test_loss\n')
+
+
     while True:
 
         t0 = time.time()
@@ -432,27 +631,33 @@ if __name__ == '__main__':
             torch.cuda.synchronize()
         t1 = time.time()
 
-        # logging
-        if step % 10 == 0:
+        # logging - this loss a bit unreliable due to SGD and batch training
+        if step % 100 == 0:
             print(f"step {step} | loss {loss.item():.4f} | step time {(t1-t0)*1000:.2f}ms")
 
-        # evaluate the model
-        if step > 0 and step % 500 == 0:
+        # evaluate the model - these losses are more reliable as applied over the whole dataset
+        if step > 0 and step % 100 == 0:
             train_loss = evaluate(model, train_dataset, batch_size=16, max_batches=10)
             test_loss  = evaluate(model, test_dataset,  batch_size=16, max_batches=10)
             writer.add_scalar("Loss/train", train_loss, step)
             writer.add_scalar("Loss/test", test_loss, step)
             writer.flush()
             print(f"step {step} train loss: {train_loss} test loss: {test_loss}")
+            with open(out_path_loss_file_all, 'a') as f:
+                    f.write(f'{step},{train_loss:.4f},{test_loss:.4f}\n')
+            # at this stage just collect the best losses
             # save the model to disk if it has improved
             if best_loss is None or test_loss < best_loss:
                 out_path = os.path.join(args.work_dir, "model.pt")
+                
                 print(f"test loss {test_loss} is the best so far, saving model to {out_path}")
+                with open(out_path_loss_file, 'a') as f:
+                    f.write(f'{step},{train_loss:.4f},{test_loss:.4f}\n')
                 torch.save(model.state_dict(), out_path)
                 best_loss = test_loss
 
         # sample from the model
-        if step > 0 and step % 200 == 0:
+        if step > 0 and step % 100 == 0:
             print_samples(num=10)
             #print('\nNo Sample \n')
 
@@ -460,19 +665,31 @@ if __name__ == '__main__':
         # termination conditions
         if step == args.max_steps/2:
             print("\nSave emb\n")
-            emb = model.transformer.wte.weight
-            emb_save_half = emb.detach().numpy()
+            #emb = model.transformer.wte.weight
+            if args.type in ['transformer']:
+                emb = model.transformer.wte.weight
+            else:
+                emb = model.wte.weight
+
+            emb_save_half = emb.detach().cpu().numpy()
             np.savetxt('emb_half.txt',emb_save_half, delimiter=',')
         
         if args.max_steps >= 0 and step >= args.max_steps:
             break
+            
+    print(f"The final best loss is for {args.type} is {best_loss}\n")
 
     # if writeout
-    emb = model.transformer.wte.weight
-    emb_save = emb.detach().numpy()
+    #emb = model.transformer.wte.weight
+    if args.type in ['transformer']:
+        emb = model.transformer.wte.weight
+    else:
+        emb = model.wte.weight
+
+    emb_save = emb.detach().cpu().numpy()
     np.savetxt('emb_final.txt',emb_save, delimiter=',')
 
-    import plot_the_embedding_prodn
+    # import plot_the_embedding_prodn
 
     # testing - if need new labels
     #train_dataset, test_dataset = create_datasets('tennis_shots_new_all_final_reduced.txt')
@@ -483,7 +700,19 @@ if __name__ == '__main__':
     labels.insert(0,'0')
     print(labels)
     print(len(labels))
+    out_path = os.path.join('.\\',args.work_dir)
+    for ds in datasets:       
+        plot_the_embedding_prodn.plot_embedding(ds,labels,out_path)
+    print(f"The final best loss is for {args.type} is {best_loss}\n")
+    #command = ["python", "plot_train_vs_test.py", args.work_dir,"model_loss_all.txt"]
+    #!python plot_train_vs_test.py model_loss_all.txt
+    #subprocess.run(command, check=True)
 
-    for ds in datasets:
-        plot_the_embedding_prodn.plot_embedding(ds,labels)
-
+    try:
+        command = ["python", "plot_train_vs_test.py", args.work_dir,"model_loss_all.txt"]
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running plot_train_vs_test.py: {e}")
+        print(f"Return code: {e.returncode}")
+        print(f"Output: {e.output}")
+        print(f"Error output: {e.stderr}")

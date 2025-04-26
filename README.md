@@ -42,7 +42,7 @@ Keras, Tensorflow, Hugginface, FASTAI, OPENAI etc depending
 upon whether you want to work with low level code or a higher
 level API. The code is adapted from nanoGPT
 https://github.com/karpathy/nanoGPT
-* Run python tennis_gpt.py -h to access help 
+* Run python tennis_gpt.py -h to access help and to access all of the options
 * To train **python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt --type transformer --max-steps 10000**
 * Note a range of range of models can be selected from variations of cross-sectional multi-layer perceptrons, to reccurrent neural networks to transformer. The can be selected via --type
 * To sample from a trained model **python tennis_gpt.py -i tennis_shot_data.txt -it <initial_token list e.g. a114,f39> -o tennis_gpt --type transformer --sample-only**
