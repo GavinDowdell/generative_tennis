@@ -24,7 +24,14 @@ The points data is in the file tennis_shot_data.txt which was derived from the i
 6. Run the code as below.
 
 ```
-generative_tennis/ ├── README.md # Project overview and instructions ├── requirements.txt # Minimal pip-based dependencies ├── tennis_gpt.py # Main training script ├── tennis_shot_data.txt # Example training data ├── plot_the_embedding_prodn.py # Plotting utility for embedding visualization ├── tennis_env/ # (Optional) Local virtual environment (not tracked) └── outputs/ └── tennis_gpt/ # Output directory for model checkpoints and logs
+generative_tennis/ 
+├── README.md # Project overview and instructions 
+├── requirements.txt # Minimal pip-based dependencies 
+├── tennis_gpt.py # Main training script ├── tennis_shot_data.txt # Example training data 
+├── plot_the_embedding_prodn.py # Plotting utility for embedding visualization 
+├── tennis_env/ # (Optional) Local virtual environment (not tracked) 
+└── outputs/ 
+└── tennis_gpt/ # Output directory for model checkpoints and logs
 ```
 
 
