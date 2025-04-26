@@ -16,11 +16,6 @@ The points data is in the file tennis_shot_data.txt which was derived from the i
 
 1. Clone the repo with git clone https://github.com/GavinDowdell/generative_tennis.git 
 2. cd generative_tennis
-	Note the file structure has she setup files, the pyton files and the data files
-	generative_tennis/
-	├── requirements.txt
-	├── tennis_gpt.py
-	├── tennis_shot_data.txt
 3. python -m venv tennis_env to setup a new environment 
 4. .\tennis_env\Scripts\activate   # On Windows or source tennis_env/bin/activate  # On Mac/Linux
 5. pip install --upgrade pip
@@ -28,7 +23,9 @@ The points data is in the file tennis_shot_data.txt which was derived from the i
    to install dependencies
 6. Run the code as below.
 
-
+```
+generative_tennis/ ├── README.md # Project overview and instructions ├── requirements.txt # Minimal pip-based dependencies ├── tennis_gpt.py # Main training script ├── tennis_shot_data.txt # Example training data ├── plot_the_embedding_prodn.py # Plotting utility for embedding visualization ├── tennis_env/ # (Optional) Local virtual environment (not tracked) └── outputs/ └── tennis_gpt/ # Output directory for model checkpoints and logs
+```
 
 
 Lets see how it works
