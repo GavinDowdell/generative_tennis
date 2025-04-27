@@ -1,7 +1,15 @@
+# usage
+# python embedding_representations.py <model_directory>
+# where <model_directory> is the path to a trained transformer model with a model.pt file
+# containing the trained weights
+# example
+# python embedding_representations.py .\tennis_gpt\transformer
+
 """
 Before running this ensure the tennis_gpt model has been run for the 
-transformer model, as below, with the output in the directory transformer_final
-python tennis_gpt_colab.py -i tennis_shot_data.txt -o transformer_final  --max-steps 10000 --type transformer
+transformer model, as this only works for transformer models, such as
+python tennis_gpt_colab.py -i tennis_shot_data.txt -o <transfomer_dir>  --max-steps 10000 --type transformer
+ensure the directory argument points to a directory with this output
 """
 
 
@@ -11,12 +19,21 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_distances
 import torch
 
+# Load the model directory from the command line argument
+if len(sys.argv) < 2:
+    print("Usage: python script.py <directory_containing_model_pt>")
+    sys.exit(1)
+
+model_directory = sys.argv[1]
+
 #%%
-# load the vocab
+# load the vocab from this directory - already built
 vocab = torch.load('./master_vocab/vocab.pt')
 # load the weights
 # the transformer_final model is NOT finetuned but was the base model for the fine tuning
-myweights = torch.load(r'./transformer_final/model.pt')
+#myweights = torch.load(r'./transformer_final/model.pt')
+myweights = torch.load(os.path.join(model_directory, 'model.pt'))
+
 config = ModelConfig(vocab_size=len(vocab), block_size=86,
                    n_layer=4, n_head=4,
                    n_embd=64, n_embd2=64)
@@ -50,13 +67,14 @@ for pt in all_pts:
         #print(output)
     # remove the batch dim    
     api_endpoint = api_endpoint[0,:,:]
-    # 2 choices
 
-    # average over the token embeddings
+    # Two choices for capturing the full point embedding
+    #
+    # 1. Average over all of the token embeddings in the point
     api_endpoint_average = api_endpoint.mean(axis=0)
 
     # 
-    # just use the embedding of the last token - but to what end?
+    # 2. Use the embedding of the last token?
     # this most likely will not give an interesting set of representaions as 
     # the next token for all of them will be the end of point token
     # so all representaions are much the same.
@@ -69,8 +87,11 @@ for pt in all_pts:
 
 # create a little vector database of embeddings
 api_embeddings_np = np.array(api_embeddings)
-np.savetxt(r'./transformer_final/point_embeddings_transformer.txt',api_embeddings_np, delimiter=',')
+# Save the embeddings to the same directory as model.pt
+embeddings_filename = 'point_embeddings_transformer.txt'
+np.savetxt(os.path.join(model_directory, embeddings_filename), api_embeddings_np, delimiter=',')
 
+# Plot the embeddings using the saved file
 out_path = './'
-# can plot as well
-plot_the_embedding_prodn.plot_embedding(r'./transformer_final/point_embeddings_transformer.txt',all_pts,out_path,transparent=True)
+plot_the_embedding_prodn.plot_embedding(os.path.join(model_directory, embeddings_filename), all_pts, out_path=model_directory, transparent=True)
+

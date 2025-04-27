@@ -11,15 +11,15 @@ The points data is in the file tennis_shot_data.txt which was derived from the i
 [JeffSackmann](https://github.com/JeffSackmann/tennis_MatchChartingProject)
 
 
-* Code structure
+* Setup to run the code
 
 
 1. Clone the repo with git clone https://github.com/GavinDowdell/generative_tennis.git 
 2. cd generative_tennis
 3. python -m venv tennis_env to setup a new environment 
 4. .\tennis_env\Scripts\activate   # On Windows or source tennis_env/bin/activate  # On Mac/Linux
-5. pip install --upgrade pip
-   pip install -r requirements.txt
+5. pip install --upgrade pip\
+   pip install -r requirements.txt\
    to install dependencies
 6. Run the code as below.
 
