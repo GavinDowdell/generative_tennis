@@ -1,9 +1,7 @@
 # 🎾 Generative Models for Professional Tennis Points
 
 
-
-
-# 🎾 Unlocking tennis strategy with generative models — pretrained and fine-tuned
+### Unlocking tennis strategy with generative models — pretrained and fine-tuned
 
 <div align="center">
 
