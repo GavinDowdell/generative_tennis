@@ -106,7 +106,7 @@ Follow the steps below to set up the environment and run the code:
      source tennis_env/bin/activate
      
 5. **Install the required dependencies:** \
-   pip install --upgrade pip
+   pip install --upgrade pip \
    pip install -r requirements.txt
 
 
@@ -140,7 +140,7 @@ generative_tennis/
 
 ## ⚙️ How to Use the code
 
-First, install dependencies:
+First, if not yet done, install dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -158,11 +158,11 @@ python tennis_gpt.py -h
 python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt\transformer --type transformer --max-steps 10000
 ```
 
-- `--type` selects model architecture from **mlpmine1|mlpmine3|rnn|gru|lstm|transformer** for different modelling options
+- `--type` selects model architecture from **mlpmine1|mlpmine3|rnn|gru|lstm|transformer** for different modelling/architecture options
 - `--max-steps` controls training duration.
 - This code also plots the individual shot embeddings as well
-- It is informative to compare the loss values, train and test loss curves and the quality of the generated points for various architectures.
-- The transformer architecture, as shown below is state of the art, however it may not be the best choice for this data. There may or may not be long dependencies to capture.
+- *It is informative to compare the loss values, train and test loss curves and the quality of the generated points for various architectures.*
+- The transformer architecture, as shown below is state of the art, however it may not be the best choice for this data. There may or may not be long dependencies to capture. For example will the 7th shot depend upon the serve type?? Interesting.
   
     
 ![Image](Transformer.png)
@@ -173,10 +173,11 @@ python tennis_gpt.py -i tennis_shot_data.txt -o tennis_gpt\transformer --type tr
 python tennis_gpt.py -i tennis_shot_data_fine_tune.txt -o tennis_gpt\transformer  --max-steps 10000  --device cpu --type transformer --fine_tuning
 ```
 - set the fine tuning flag with `--fine_tuning` flag
-- The -o directory is the location of the original pretrained model. The fine tuned model and evaluation results will be stored in a sub-directory under this called finetune.
+- The -o directory is the location of the original pretrained model.
+- The fine tuned model and evaluation results will be stored in a sub-directory under this called finetune.
 - `--type` selects model architecture from **mlpmine1|mlpmine3|rnn|gru|lstm|transformer** for different modelling options
 - `--max-steps` controls training duration.
-- The dataset for finetuning is the fine tuning dataset which is trying to align the model to this custom behaviour
+- The -i option here is the dataset for finetuning, which is the fine tuning dataset which is trying to align the model to this custom behaviour. The dataset provided is just an example at this stage
 ### Sample from a trained model:
 - The  sampling can be done of a trained model or a fine-tuned model
 ```bash
