@@ -14,9 +14,9 @@
 
 ## 🚀 Project Overview
 
-This project **reimagines** professional tennis point data through the lens of **language modeling**.\
-Whilst to the observer tennis points may look like a random selection of shots, infact professional players usually play against each other with specific strategies trying to out-think each other.
-By treating sequences of tennis shots within points as individual tokens, similar to words/tokens within sentences, we unlock the power of **autoregressive models** to reveal hidden patterns in play, generate new points and playing styles and extract strategic embeddings.
+This project **reimagines** professional tennis point data through the lens of **language modeling and next token\shot prediction**.\
+Whilst to the casual observer tennis points may look like a random selection of shots, professional players usually play against each other with specific strategies trying to out-think each other and attempting to implement strategies that suit their personal strengths.\
+By treating sequences of tennis shots within points as individual tokens, similar to words/tokens within sentences, we can unlock the power of **autoregressive models** and self-supervised learning to predict the next shot in the point sequence and therefore enable the model to learn about tennis sturctue much the same as language models eventually learn about language structure. The aim being to reveal hidden patterns in play, generate new synthetic points, simulate playing styles and extract strategic embeddings.
 
 Supported model architectures implented as *decoder-only* architectures include:  
 - **Transformer** (implemented **from scratch** modified from [nanoGPT](https://github.com/karpathy/nanoGPT))  
@@ -44,7 +44,7 @@ However, there is a fantastic open-source project by [Jeff Sackman](https://gith
 ### Match Charting Data Overview:
 - **Each point is encoded as a sequence of shots**, with the following attributes:
   - **Shot Type, Direction, Depth, Outcome**
-    - **Shot types**: Forehand, Backhand, etc.
+    - **Shot types**: Forehand (f), Backhand (b), etc.
     - **Directions**: Forehand side (1), Middle (2), Backhand side (3)
   - Example encodings:
     - `f1` → Forehand hit to forehand side
